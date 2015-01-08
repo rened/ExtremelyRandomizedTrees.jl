@@ -170,7 +170,7 @@ end
  
 
 
-function predict{T}(a::ExtraTrees, data::Array{T,2})
+function predict{T}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a.trees[1].leafs,1))
 	if isempty(data) 
 		result = []
 		votes = []
@@ -180,8 +180,10 @@ function predict{T}(a::ExtraTrees, data::Array{T,2})
 	assert(!isempty(data))
 	assert(!isempty(a.trees))
 
-	size(a.trees[1].leafs)
-	votes = zeros(size(a.trees[1].leafs,1),size(data,2))
+	if isa(votesfor, Number)
+		votesfor = [votesfor]
+	end
+	votes = zeros(length(votesfor), size(data,2))
 	dataLinspace = collect(0:size(data,2)-1)*size(data,1)
 
 	for extratree = a.trees
@@ -205,19 +207,23 @@ function predict{T}(a::ExtraTrees, data::Array{T,2})
 		end
 		final[todo] = nodeInds
 		# @show tree final tree[5,final] extratree.leafs
-		votes = votes + extratree.leafs[:,vec(tree[5,final])]
+		votes = votes + extratree.leafs[votesfor, vec(tree[5,final])]
 		#assert(isequal(votes,votes2))
 	end
 
 	if a.trees[1].regression
 		votes./length(a.trees)
 	else
-		votes = votes./sum(votes,1)
-		result = zeros(1, size(data,2))
-		for i = 1:size(data,2)
-			result[i] = indmax(votes[:,i])
+		if length(votesfor) != size(a.trees[1].leafs,1)
+			votes./sum(votes,2)
+		else
+			votes = votes./sum(votes,1)
+			result = zeros(1, size(data,2))
+			for i = 1:size(data,2)
+				result[i] = indmax(votes[:,i])
+			end
+			(result, votes)
 		end
- 		(result, votes)
 	end
 end
  
