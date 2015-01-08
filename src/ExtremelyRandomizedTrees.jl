@@ -204,14 +204,14 @@ function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a
 			end
 		end
 		final[todo] = nodeInds
-		# @show tree final tree[5,final] extratree.leafs
 		votes = votes + extratree.leafs[votesfor, vec(tree[5,final])]
 	end
 
+	votes ./= length(a.trees)
 	if a.trees[1].regression
-		votes./length(a.trees)
+		votes
 	else
-		if length(votesfor) != size(a.trees[1].leafs,1)
+		if votesfor != collect(1:size(a.trees[1].leafs,1))
 			votes
 		else
 			result = zeros(1, size(data,2))

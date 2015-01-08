@@ -1,4 +1,4 @@
-e ExtremelyRandomizedTrees
+ExtremelyRandomizedTrees
 
 [![Build Status](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl.svg?branch=master)](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl)
 
@@ -46,9 +46,18 @@ ExtraTrees(data, labels; kargs...)
 ```
 with the requirement that `size(data,2) == size(labels,2)`.
 
-The optional arguments with their default are:
-* `ntrees = 32`: Number of trees
+The optional arguments with their defaults are:
 * `regression = false`: Regression if `true`, classification otherwise
-* `classificationNMin = 2` and `regressionNMin`: Higher values can be used for regularization
-* `nclasses = int(maximum(labels))`: In case that the labels might not contain examples for every class, the number of classes can be set explicitly
+* `ntrees = 32`: Number of trees
+* `classificationNMin = 2` and `regressionNMin = 5`: Higher values can be used for regularization (see the paper for details)
+* `nclasses = int(maximum(labels))`: In case that `labels` might not contain examples for every class, the number of classes can be set explicitly
 * `k = round(sqrt(size(data,1)))`: Number of features investigated for splits at every node (see the paper for details)
+
+ExtraTrees are quite robust regarding these parameter settings, so there is rarely any need to meta-optimize them.
+
+## Todos
+
+* Speed optimizations needed, especially regarding allocations.
+
+
+
