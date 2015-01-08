@@ -31,11 +31,7 @@ end
 function buildSingleTree(data, labels;
 	classificationNMin = 2,
 	regressionNMin = 5,
-	debug = false,
 	regression = false,
-	regressionUsingMean = true,
-	batchSize = 10e8,
-	maximumdepth = 10e8,
 	nmin = regression ? regressionNMin : classificationNMin,
 	nclasses = int(maximum(labels)),
 	k = round(sqrt(size(data,1))), 
@@ -140,7 +136,7 @@ tree = ones(5, initalSize)
             if length(splits)>1
                 scores = zeros(size(splits))
                 for splitInd = 1:length(splits)
-                    scores(splitInd) = 
+                    computeScore(splitInd) = 
                         computeScore(regression, data(selectedFeatures(splitInd),:), labels, splits(splitInd), nclasses)
                 end
                 bestSplitInd = indmax(scores)
