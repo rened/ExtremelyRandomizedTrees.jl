@@ -24,7 +24,7 @@ if doDummyClassification
 
     testdata = linspace(-5,5,100)'
 
-    result, votes = predict(a, testdata)
+    result, votes = predict(a, testdata, returnvotes = true)
     doPlot && plot(testdata', [votes' result'])
 end
 
@@ -48,7 +48,7 @@ if doClassification
     X = [x for x in -5:0.1:10, y in -5:0.1:10]
     Y = [y for x in -5:0.1:10, y in -5:0.1:10]
 
-    result, votes = predict(a, [vec(X) vec(Y)]');
+    result = predict(a, [vec(X) vec(Y)]');
     
     doPlot && imshow(reshape(result, size(X)))
 end
@@ -82,7 +82,7 @@ if testIndivProbPrediction
     X = [x for x in -5:0.1:10, y in -5:0.1:10]
     Y = [y for x in -5:0.1:10, y in -5:0.1:10]
 
-    result, votes = predict(a, [vec(X) vec(Y)]')
+    result, votes = predict(a, [vec(X) vec(Y)]', returnvotes = true)
     indivvotes = Array(Any,3)
     for i = 1:3
         indivvotes[i] = predict(a, [vec(X) vec(Y)]'; votesfor=i)

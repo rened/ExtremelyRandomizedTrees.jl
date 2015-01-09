@@ -168,7 +168,7 @@ end
  
 
 
-function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a.trees[1].leafs,1))
+function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a.trees[1].leafs,1), returnvotes = false)
 	if isempty(data) 
 		result = []
 		votes = []
@@ -218,7 +218,11 @@ function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a
 			for i = 1:size(data,2)
 				result[i] = indmax(votes[:,i])
 			end
-			(result, votes)
+			if returnvotes
+				(result, votes)
+			else
+				result
+			end
 		end
 	end
 end
