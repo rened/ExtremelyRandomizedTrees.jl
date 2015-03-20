@@ -1,14 +1,20 @@
 module ExtremelyRandomizedTrees
 
+using FunctionalData
+
 export ExtraTrees, predict
 
 type ExtraTrees
 	trees
 end
 
-type ExtremelyRandomizedTree
-	tree
-	leafs
+immutable ExtremelyRandomizedTree{T}
+	featureinds::Array{Int}
+    thresholds::Array{T}
+    leftinds::Array{Int}
+    rightinds::Array{Int}
+    leafinds::Array{Int}
+	leafs::Array{T,2}
 	maxdepth
 	regression
 end
@@ -37,18 +43,23 @@ function buildSingleTree(data, labels;
 	k = round(sqrt(size(data,1))), 
 	)
 
-if !regression && minimum(labels)<1
-	error("labels need to be >= 1")
-end
-	
-nLeafs = 0
-nNodes = 0
-maxdepth = 0
-initalSize = iceil(length(labels)/101)
-leafsize = regression ? size(labels,1) : nclasses
-leafs = zeros(leafsize, initalSize)
-tree = ones(5, initalSize)
-# format:  [featureInd threshold leftgotoInd rightgotoInd leafIndex]'
+    if !regression && minimum(labels)<1
+        error("labels need to be >= 1")
+    end
+        
+    nLeafs = 0
+    nNodes = 0
+    maxdepth = 0
+    initalSize = iceil(length(labels)/101)
+    leafsize = regression ? size(labels,1) : nclasses
+    leafs = zeros(eltype(data), leafsize, initalSize)
+    featureinds = ones(Int, initalSize)
+    leftinds  = ones(Int, initalSize)
+    rightinds = ones(Int, initalSize)
+    leafinds = ones(Int, initalSize)
+    thresholds = ones(eltype(data), initalSize)
+
+    # format:  [featureInd threshold leftgotoInd rightgotoInd leafIndex]'
 
 
     function buildTree(data, labels, depth)
@@ -91,14 +102,18 @@ tree = ones(5, initalSize)
         end
         
         nNodes = nNodes + 1
-        if nNodes > size(tree,2)
-            tree = hcat(tree, ones(size(tree)))
+        if nNodes > length(featureinds)
+            featureinds = vcat(featureinds, featureinds)
+            thresholds = vcat(thresholds, thresholds)
+            leftinds = vcat(leftinds, leftinds)
+            rightinds = vcat(rightinds, rightinds)
+            leafinds = vcat(leafinds, leafinds)
         end
         nodeInd = nNodes
         
         if makeLeaf
             if nLeafs == size(leafs,2)
-                leafs = hcat(leafs, zeros(size(leafs)))
+                leafs = hcat(leafs, leafs)
             end
             nLeafs = nLeafs + 1
 
@@ -113,8 +128,9 @@ tree = ones(5, initalSize)
 				leafs[:,nLeafs] = classFrequencies./sum(classFrequencies)
 			end
            
-            tree[3:4,nodeInd] = nodeInd
-            tree[5,nodeInd] = nLeafs
+            leftinds[nodeInd] = nodeInd
+            rightinds[nodeInd] = nodeInd
+            leafinds[nodeInd] = nLeafs
         else
             # 1) select random K from nonConstantFeatures
             nonConstantFeatures = find(nonConstantFeatures)
@@ -144,8 +160,8 @@ tree = ones(5, initalSize)
                 bestSplitInd = 1
             end
             
-            tree[1,nodeInd] = selectedFeatures[bestSplitInd]
-            tree[2,nodeInd] = splits[bestSplitInd]
+            featureinds[nodeInd] = selectedFeatures[bestSplitInd]
+            thresholds[nodeInd] = splits[bestSplitInd]  
             
             # 4) split data according to split s*, d1, d2
             dataind = 
@@ -154,78 +170,97 @@ tree = ones(5, initalSize)
             # 5) for both parts: t1=buildTree(d1), t2=buildTree(d2)
             maxdepth = max(depth,maxdepth)
             
-            tree[3,nodeInd] = buildTree(data[:,dataind], labels[:,dataind], depth+1)
-            tree[4,nodeInd] = buildTree(data[:,!dataind], labels[:,!dataind], depth+1)
-            tree[5,nodeInd] = 0
+            leftinds[nodeInd] = buildTree(data[:,dataind], labels[:,dataind], depth+1)
+            rightinds[nodeInd] = buildTree(data[:,!dataind], labels[:,!dataind], depth+1)
+            leafinds[nodeInd] = 0
         end
 		nodeInd
     end
 	buildTree(data, labels, 1)
-	tree = tree[:,1:nNodes]
+	featureinds = featureinds[1:nNodes]
+	thresholds = thresholds[1:nNodes]
+	leftinds = leftinds[1:nNodes]
+	rightinds = rightinds[1:nNodes]
+	leafinds = leafinds[1:nNodes]
 	leafs = leafs[:,1:nLeafs]
-	(tree, leafs, maxdepth, regression)
+	(featureinds, thresholds, leftinds, rightinds, leafinds, leafs, maxdepth, regression)
 end
  
-
-
-function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor = 1:size(a.trees[1].leafs,1), returnvotes = false)
-	if isempty(data) 
-		result = []
-		votes = []
-		return
-	end
-
-	assert(!isempty(data))
-	assert(!isempty(a.trees))
-
-	if isa(votesfor, Number)
-		votesfor = [votesfor]
-	end
-	votes = zeros(length(votesfor), size(data,2))
-	dataLinspace = collect(0:size(data,2)-1)*size(data,1)
-
-	for extratree = a.trees
-		tree = extratree.tree
-		
-		nodeInds = ones(size(data,2))
-		features = tree[1,:]
-		thresholds = tree[2,:]
-		todo = collect(1:size(data,2))
-		final = zeros(length(nodeInds))
-		
-		for levelInd = 1:extratree.maxdepth
-			if !isempty(nodeInds)
-				d = data[dataLinspace[todo] + features[nodeInds]]
-				nodeInds2 = tree[(nodeInds-1)*5 + 3 + (d .>= thresholds[nodeInds]) ]
-				done = nodeInds2.==nodeInds
-				final[todo[done]] = nodeInds2[done]
-				deleteat!(todo,find(done))
-				nodeInds = nodeInds2[!done]
-			end
-		end
-		final[todo] = nodeInds
-		votes = votes + extratree.leafs[votesfor, vec(tree[5,final])]
-	end
-
-	votes ./= length(a.trees)
-	if a.trees[1].regression
-		votes
-	else
-		if votesfor != collect(1:size(a.trees[1].leafs,1))
-			votes
-		else
-			result = zeros(1, size(data,2))
-			for i = 1:size(data,2)
-				result[i] = indmax(votes[:,i])
-			end
-			if returnvotes
-				(result, votes)
-			else
-				result
-			end
-		end
-	end
+function accumvotes!{T}(votesview::Array{T,2}, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
+    for i in votesfor
+        votesview[i] += leafs[i, leafind]
+    end
 end
+
+function getnextnodeind(dataview, nodeind::Int, extratree::ExtremelyRandomizedTree, thresholds)
+    featureind = extratree.featureinds[nodeind]::Int
+    threshold = thresholds[nodeind]::Float32
+    if dataview[featureind]::Float32 < threshold
+        extratree.leftinds[nodeind]::Int
+    else
+        extratree.rightinds[nodeind]::Int
+    end
+end
+
+function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor::Array{Int} = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
+    if isa(votesfor, Number)
+        votesfor = [votesfor]
+    end
+    
+    votes = zeros(eltype(a.trees[1].leafs), length(votesfor), len(data))
+    predict!(votes, a, data, votesfor, returnvotes)
+end
+
+function predicttree(extratree, data, dataview, votes, votesview, votesfor)
+    for dataind = 1:len(data)
+        view!(data, dataind, dataview)
+        view!(votes, dataind, votesview)
+
+        nodeind = 0
+        nextnodeind = 1
+
+        while nextnodeind != nodeind
+            nodeind = nextnodeind
+            nextnodeind = getnextnodeind(dataview, nodeind, extratree, extratree.thresholds)::Int
+        end
+        accumvotes!(votesview, extratree.leafinds[nodeind], votesfor, extratree.leafs)
+    end
+end
+
+function predict!{T<:Number}(votes, a::ExtraTrees, data::Array{T,2}, votesfor, returnvotes = false)
+    assert(!isempty(data))
+    assert(!isempty(a.trees))
+    assert(eltype(data)==eltype(a.trees[1].thresholds))
+    assert(eltype(data)==eltype(a.trees[1].leafs))
+
+    dataview = view(data)
+    votesview = view(votes)
+
+    for extratree = a.trees
+        predicttree(extratree, data, dataview, votes, votesview, votesfor)
+    end
+
+    votes ./= length(a.trees)
+    if a.trees[1].regression
+        votes
+    else
+        if votesfor != collect(1:size(a.trees[1].leafs,1))
+            votes
+        else
+            result = zeros(1, size(data,2))
+            for i = 1:size(data,2)
+                result[i] = indmax(votes[:,i])
+            end
+            if returnvotes
+                (result, votes)
+            else
+                result
+            end
+        end
+    end
+    votes
+end
+
  
 function entropy(data, nclasses)
 	px = zeros(nclasses)
