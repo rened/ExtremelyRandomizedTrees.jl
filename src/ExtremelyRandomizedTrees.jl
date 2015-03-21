@@ -1,26 +1,22 @@
 module ExtremelyRandomizedTrees
 
-using FunctionalData
+using FunctionalDataUtils
 
 export ExtraTrees, predict
 
-type ExtraTrees
-	trees
-end
-
 immutable ExtremelyRandomizedTree{T}
-	featureinds::Array{Int}
+    indmatrix::Array{Int,2}
     thresholds::Array{T}
-    leftinds::Array{Int}
-    rightinds::Array{Int}
-    leafinds::Array{Int}
-	leafs::Array{T,2}
-	maxdepth
-	regression
+    leafs
+    regression
 end
 
-function ExtraTrees(data, labels; ntrees = 32, kargs...)
-	ExtraTrees([ExtremelyRandomizedTree(data, labels; kargs...) for i in 1:ntrees])
+type ExtraTrees{T}
+	trees::Array{ExtremelyRandomizedTree{T}}
+end
+
+function ExtraTrees{T}(data::Matrix{T}, labels; ntrees = 32, kargs...)
+	ExtraTrees{T}([ExtremelyRandomizedTree(data, labels; kargs...) for i in 1:ntrees])
 end
 
 function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::Array{T1,2}, labels::Array{T2,2}; kargs...)
@@ -32,6 +28,42 @@ function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::Array{T1,2}, label
 	assert(!any(isnan(data)))
 
 	ExtremelyRandomizedTree(buildSingleTree(data, labels; kargs...)...)
+end
+
+function swap(a, i::Int, j::Int)
+    temp = a[i]
+    a[i] = a[j]
+    a[j] = temp
+end
+
+function halfsort{T}(indices::Array{Int}, data::Matrix{T}, featureind::Int, threshold::T)
+    assert(length(indices)>1)
+    leftind = 1
+    rightind = length(indices)
+    while leftind < rightind-1
+        lookingatind = indices[leftind]
+        if data[featureind, lookingatind] < threshold
+            leftind += 1
+        else
+            swap(indices, leftind, rightind)
+            rightind -= 1
+        end
+    end
+    view(indices, 1:leftind), view(indices, rightind:length(indices))
+end
+
+function splits!{T}(rsplits::Array{T}, mins::Array{T}, maxs::Array{T}, data::Matrix{T}, selectedfeatures::Array{Int}, indices::Array{Int})
+    for m = selectedfeatures
+        mins[m] = data[m, indices[1]]
+        maxs[m] = data[m, indices[1]]
+    end
+    for n = indices, m = selectedfeatures
+        mins[m] = min(mins[m], data[m, n])
+        maxs[m] = max(maxs[m], data[m, n])
+    end
+    for m = selectedfeatures
+        rsplits[m] = mins[m] + rand(eltype(rsplits))*(maxs[m]-mins[m])
+    end
 end
 
 function buildSingleTree(data, labels;
@@ -49,48 +81,28 @@ function buildSingleTree(data, labels;
         
     nLeafs = 0
     nNodes = 0
-    maxdepth = 0
-    initalSize = iceil(length(labels)/101)
+    initalSize = iceil(length(labels)/100)
     leafsize = regression ? size(labels,1) : nclasses
     leafs = zeros(eltype(data), leafsize, initalSize)
-    featureinds = ones(Int, initalSize)
-    leftinds  = ones(Int, initalSize)
-    rightinds = ones(Int, initalSize)
-    leafinds = ones(Int, initalSize)
+    indmatrix = ones(Int, 4, initalSize)
     thresholds = ones(eltype(data), initalSize)
+    indices = collect(1:len(data))
+    mins = similar(data, sizem(data))
+    maxs = similar(data, sizem(data))
+    splits = similar(data, sizem(data))
 
-    # format:  [featureInd threshold leftgotoInd rightgotoInd leafIndex]'
-
-
-    function buildTree(data, labels, depth)
-        # 	for all features
-        # 		all data constant?
-        # 		store indices to nonConstantFeatures
-        #
-        # length(data) < nMin ?
-        #
-        # all labels equal ?
-        
-        if size(data,2) < nmin
+    function buildTree(data, labels, indices)
+        if len(indices) < nmin
 			makeLeaf = true
         else
-            #     makeLeaf = true
-            #     first = labels(1)
-            #     for i = 2:length(labels)
-            #         if labels(i)~=first
-            #             makeLeaf = false
-            #             break
-            #         end
-            #     end
-            
-            makeLeaf = !any(labels != labels[1])
+            makeLeaf = !any(labels != labels[indices[1]])
         end
         if !makeLeaf
-			nonConstantFeatures = falses(size(data,1))
-            for featureInd = 1:size(data,1)
-                firstDatum = data[featureInd,1]
-                for i = 2:size(data,2)
-                    if data[featureInd,i] != firstDatum
+			nonConstantFeatures = falses(sizem(data))
+            for featureInd = 1:sizem(data)
+                firstDatum = data[featureInd,indices[1]]
+                for i = 2:len(indices)
+                    if data[featureInd,indices[i]] != firstDatum
                         nonConstantFeatures[featureInd] = true
                         break
                     end
@@ -102,14 +114,11 @@ function buildSingleTree(data, labels;
         end
         
         nNodes = nNodes + 1
-        if nNodes > length(featureinds)
-            featureinds = vcat(featureinds, featureinds)
+        if nNodes > len(indmatrix)
+            indmatrix = hcat(indmatrix, indmatrix)
             thresholds = vcat(thresholds, thresholds)
-            leftinds = vcat(leftinds, leftinds)
-            rightinds = vcat(rightinds, rightinds)
-            leafinds = vcat(leafinds, leafinds)
         end
-        nodeInd = nNodes
+        nodeind = nNodes
         
         if makeLeaf
             if nLeafs == size(leafs,2)
@@ -118,21 +127,22 @@ function buildSingleTree(data, labels;
             nLeafs = nLeafs + 1
 
 			if regression 
-				leafs[:,nLeafs] = mean(labels,2)
+				leafs[:,nLeafs] = @p part labels indices | mean_
 			else
 				# return leaf label with class frequencies
 				classFrequencies = zeros(nclasses)
 				for i = 1:nclasses
-					classFrequencies[i] = sum(labels .== i)
+					classFrequencies[i] = sum(labels[indices] .== i)
 				end
 				leafs[:,nLeafs] = classFrequencies./sum(classFrequencies)
 			end
            
-            leftinds[nodeInd] = nodeInd
-            rightinds[nodeInd] = nodeInd
-            leafinds[nodeInd] = nLeafs
+            indmatrix[2, nodeind] = nodeind
+            indmatrix[3, nodeind] = nodeind
+            indmatrix[4, nodeind] = nLeafs
         else
             # 1) select random K from nonConstantFeatures
+
             nonConstantFeatures = find(nonConstantFeatures)
             randIndices = randperm(length(nonConstantFeatures)) 
             selectedFeatures = nonConstantFeatures[
@@ -143,47 +153,44 @@ function buildSingleTree(data, labels;
             # 		min and max von feature
             # 		return random split in [min,max]
             
-            mins = minimum(data[selectedFeatures,:],2)
-            maxs = maximum(data[selectedFeatures,:],2)
-            splits = rand(length(selectedFeatures),1).*(maxs-mins)+mins
+            # mins = minimum(data[selectedFeatures,indices],2)
+            # maxs = maximum(data[selectedFeatures,indices],2)
+            splits!(splits, mins, maxs, data, selectedFeatures, indices)
+            # splits = rand(eltype(data), length(selectedFeatures),1).*(maxs-mins)+mins
             
             # 3) over all K: computeScore, keep best split s*
             
-            if length(splits)>1
-                scores = zeros(size(splits))
-                for splitInd = 1:length(splits)
+            if length(selectedFeatures)>1
+                scores = zeros(selectedFeatures)
+                for splitInd = 1:length(selectedFeatures)
                     computeScore(splitInd) = 
-                        computeScore(regression, data(selectedFeatures(splitInd),:), labels, splits(splitInd), nclasses)
+                        computeScore(regression, data(selectedFeatures(splitInd),indices), labels, 
+                        splits[selectedFeatures[splitInd]], nclasses)
                 end
                 bestSplitInd = indmax(scores)
             else
                 bestSplitInd = 1
             end
             
-            featureinds[nodeInd] = selectedFeatures[bestSplitInd]
-            thresholds[nodeInd] = splits[bestSplitInd]  
+            indmatrix[1,nodeind] = selectedFeatures[bestSplitInd]
+            thresholds[nodeind] = splits[bestSplitInd]  
             
             # 4) split data according to split s*, d1, d2
-            dataind = 
-                vec(data[selectedFeatures[bestSplitInd],:] .< splits[bestSplitInd])
+            featureind = selectedFeatures[bestSplitInd]
+            threshold = splits[bestSplitInd]
 
-            # 5) for both parts: t1=buildTree(d1), t2=buildTree(d2)
-            maxdepth = max(depth,maxdepth)
-            
-            leftinds[nodeInd] = buildTree(data[:,dataind], labels[:,dataind], depth+1)
-            rightinds[nodeInd] = buildTree(data[:,!dataind], labels[:,!dataind], depth+1)
-            leafinds[nodeInd] = 0
+            leftindices, rightindices = halfsort(indices, data, featureind, threshold)
+            indmatrix[2, nodeind] = buildTree(data, labels, leftindices)
+            indmatrix[3, nodeind] = buildTree(data, labels, rightindices)
+            indmatrix[4, nodeind] = 0
         end
-		nodeInd
+		nodeind
     end
-	buildTree(data, labels, 1)
-	featureinds = featureinds[1:nNodes]
+	buildTree(data, labels, indices)
+	indmatrix = indmatrix[:, 1:nNodes]
 	thresholds = thresholds[1:nNodes]
-	leftinds = leftinds[1:nNodes]
-	rightinds = rightinds[1:nNodes]
-	leafinds = leafinds[1:nNodes]
 	leafs = leafs[:,1:nLeafs]
-	(featureinds, thresholds, leftinds, rightinds, leafinds, leafs, maxdepth, regression)
+	(indmatrix, thresholds, leafs, regression)
 end
  
 function accumvotes!{T}(votesview::Array{T,2}, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
@@ -192,17 +199,7 @@ function accumvotes!{T}(votesview::Array{T,2}, leafind::Int, votesfor::Array{Int
     end
 end
 
-function getnextnodeind(dataview, nodeind::Int, extratree::ExtremelyRandomizedTree, thresholds)
-    featureind = extratree.featureinds[nodeind]::Int
-    threshold = thresholds[nodeind]::Float32
-    if dataview[featureind]::Float32 < threshold
-        extratree.leftinds[nodeind]::Int
-    else
-        extratree.rightinds[nodeind]::Int
-    end
-end
-
-function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor::Array{Int} = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
+function predict{T<:Number}(a::ExtraTrees{T}, data::Array{T,2}; votesfor::Array{Int} = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
     if isa(votesfor, Number)
         votesfor = [votesfor]
     end
@@ -211,27 +208,39 @@ function predict{T<:Number}(a::ExtraTrees, data::Array{T,2}; votesfor::Array{Int
     predict!(votes, a, data, votesfor, returnvotes)
 end
 
+function predictitem{T}(dataview::Matrix{T}, indmatrix::Matrix{Int}, thresholds::Vector{T})
+    nodeind = 0
+    nextnodeind = 1
+
+    while nextnodeind != nodeind
+        nodeind = nextnodeind
+        featureind = indmatrix[1,nodeind]::Int
+        threshold = thresholds[nodeind]::T
+        if dataview[featureind]::T < threshold
+            nextnodeind = indmatrix[2,nodeind]::Int
+        else
+            nextnodeind = indmatrix[3,nodeind]::Int
+        end
+    end
+    nodeind
+end
+
 function predicttree(extratree, data, dataview, votes, votesview, votesfor)
+    indmatrix = extratree.indmatrix
+    thresholds = extratree.thresholds
     for dataind = 1:len(data)
         view!(data, dataind, dataview)
         view!(votes, dataind, votesview)
-
-        nodeind = 0
-        nextnodeind = 1
-
-        while nextnodeind != nodeind
-            nodeind = nextnodeind
-            nextnodeind = getnextnodeind(dataview, nodeind, extratree, extratree.thresholds)::Int
-        end
-        accumvotes!(votesview, extratree.leafinds[nodeind], votesfor, extratree.leafs)
+        nodeind = predictitem(dataview, indmatrix, thresholds)
+        accumvotes!(votesview, extratree.indmatrix[4,nodeind], votesfor, extratree.leafs)
     end
 end
 
-function predict!{T<:Number}(votes, a::ExtraTrees, data::Array{T,2}, votesfor, returnvotes = false)
+function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor, returnvotes = false)
     assert(!isempty(data))
     assert(!isempty(a.trees))
-    assert(eltype(data)==eltype(a.trees[1].thresholds))
-    assert(eltype(data)==eltype(a.trees[1].leafs))
+    assert(eltype(data) == eltype(a.trees[1].thresholds))
+    assert(eltype(data) == eltype(a.trees[1].leafs))
 
     dataview = view(data)
     votesview = view(votes)

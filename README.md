@@ -55,9 +55,3 @@ The optional arguments with their defaults are:
 
 ExtraTrees are quite robust regarding these parameter settings, so there is rarely any need to meta-optimize them.
 
-## Todos
-
-* Speed optimizations needed, especially regarding allocations.
-
-
-
