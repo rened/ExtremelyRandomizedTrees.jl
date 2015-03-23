@@ -6,6 +6,7 @@ This package provides an implementation of Extremely Randomized Trees by Geurts 
 
 ExtraTrees can be used in classification and regression settings. Extending the original algorithm, this package also provides support for regression with multi-dimensional target values.
 
+
 ## Classification
 
 ```jl
@@ -55,3 +56,8 @@ The optional arguments with their defaults are:
 
 ExtraTrees are quite robust regarding these parameter settings, so there is rarely any need to meta-optimize them.
 
+## News
+
+#### 0.0.2
+
+* Considerably improved performance of both training and prediction.
