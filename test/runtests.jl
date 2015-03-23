@@ -20,7 +20,7 @@ testIndivProbPrediction = true
 if doDummyClassification
     data = [-2 -1 1 2]
     labels = [1 1 2 2]
-    a = ExtraTrees(data, labels)
+    a = ExtraTrees(float(data), labels)
 
     testdata = linspace(-5,5,100)'
 
@@ -124,29 +124,17 @@ end
 ####################################
 
 if doRegression2to2
-    lin = linspace(-4*pi,4*pi, 200)'
-    X = Float64[x for x in lin, y in lin]
-    Y = Float64[y for x in lin, y in lin]
-    trainingData = [vec(X) vec(Y)]'
-    lin = linspace(-4*pi,4*pi, 300)
-    X = Float64[x for x in lin, y in lin]
-    Y = Float64[y for x in lin, y in lin]
-    testData = [vec(X) vec(Y)]'
+    trainingData = linspace(0,2*pi,100)'
+    testData = linspace(0,2*pi,1000)'
+    trainingTargets = vcat([10 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15)],
+    [10 + cos(trainingData) + (0.3*rand(size(trainingData))-0.15)]);
+    testTargets = vcat([10 + sin(testData)],
+    [10 + cos(testData)]);
 
-    x = sqrt(sum(trainingData.^2,1))+1
-    trainingLabels = [10 + sin(x)./x + (0.1*rand(size(x))-0.05);
-        x + (0.5*rand(size(x))-0.25)]
-
-    x = sqrt(sum(testData.^2,1))+1
-    testLabels = [10 + sin(x)./x + (0.1*rand(size(x))-0.05);
-        x + (0.5*rand(size(x))-0.25)]
-
-    a = ExtraTrees(trainingData, trainingLabels; regression = true)
+    a = ExtraTrees(trainingData, trainingTargets; regression = true)
     result = predict(a,testData)
-    _, h1 = hist(abs(vec(result[1,:]-testLabels[1,:])),[0,0.5,0.1,Inf])
-    _, h2 = hist(abs(vec(result[2,:]-testLabels[2,:])),[0,0.5,0.1,Inf])
-    assert(h1[3]==0 && h1[2]<10)
-    assert(h2[3]==0 && h2[2]<10)
+
+    assert(maximum(abs(result-testTargets))<0.3)
 end
 
 

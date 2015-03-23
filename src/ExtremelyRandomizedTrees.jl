@@ -11,12 +11,16 @@ immutable ExtremelyRandomizedTree{T}
     regression
 end
 
-type ExtraTrees{T}
+type ExtraTrees{T<:FloatingPoint}
 	trees::Array{ExtremelyRandomizedTree{T}}
 end
 
-function ExtraTrees{T}(data::Matrix{T}, labels; ntrees = 32, kargs...)
+function ExtraTrees{T<:FloatingPoint}(data::Matrix{T}, labels; ntrees = 32, kargs...)
 	ExtraTrees{T}([ExtremelyRandomizedTree(data, labels; kargs...) for i in 1:ntrees])
+end
+
+function ExtraTrees{T<:Integer}(data::Matrix{T}, labels; ntrees = 32, kargs...)
+	ExtraTrees(float32(data), labels; kargs...)
 end
 
 function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::Array{T1,2}, labels::Array{T2,2}; kargs...)
@@ -83,7 +87,7 @@ function buildSingleTree(data, labels;
     nNodes = 0
     initalSize = iceil(length(labels)/100)
     leafsize = regression ? size(labels,1) : nclasses
-    leafs = zeros(eltype(data), leafsize, initalSize)
+    leafs = zeros(Float32, leafsize, initalSize)
     indmatrix = ones(Int, 4, initalSize)
     thresholds = ones(eltype(data), initalSize)
     indices = collect(1:len(data))
@@ -194,12 +198,13 @@ function buildSingleTree(data, labels;
 end
  
 function accumvotes!{T}(votesview::Array{T,2}, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
-    for i in votesfor
-        votesview[i] += leafs[i, leafind]
+    for i in 1:length(votesfor)
+        votesview[i] += leafs[votesfor[i], leafind]
     end
 end
 
-function predict{T<:Number}(a::ExtraTrees{T}, data::Array{T,2}; votesfor::Array{Int} = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
+predict{T<:Integer}(a::ExtraTrees, data::Array{T,2}; kargs...) = predict(a, float32(data); kargs...)
+function predict{T<:FloatingPoint}(a::ExtraTrees{T}, data::Array{T,2}; votesfor = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
     if isa(votesfor, Number)
         votesfor = [votesfor]
     end
@@ -240,7 +245,6 @@ function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor
     assert(!isempty(data))
     assert(!isempty(a.trees))
     assert(eltype(data) == eltype(a.trees[1].thresholds))
-    assert(eltype(data) == eltype(a.trees[1].leafs))
 
     dataview = view(data)
     votesview = view(votes)
