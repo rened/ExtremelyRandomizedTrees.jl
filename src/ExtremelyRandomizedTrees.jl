@@ -1,6 +1,6 @@
 module ExtremelyRandomizedTrees
 
-using FunctionalDataUtils
+using FunctionalDataUtils, ProgressMeter
 
 export ExtraTrees, predict
 
@@ -15,15 +15,35 @@ type ExtraTrees{T<:FloatingPoint}
 	trees::Array{ExtremelyRandomizedTree{T}}
 end
 
-function ExtraTrees{T<:FloatingPoint}(data::Matrix{T}, labels; ntrees = 32, kargs...)
-	ExtraTrees{T}([ExtremelyRandomizedTree(data, labels; kargs...) for i in 1:ntrees])
+function ExtraTrees{T<:FloatingPoint}(data::Matrix{T}, labels; ntrees = 32, showprogress = true, pids = localworkers(), kargs...)
+    if @unix ? (intersect(pids, localworkers()) == pids) : false
+        workerpool = @p localworkers | unstack
+        data = share(data)
+        labels = share(labels)
+        remotedata   = [data for i in 1:ntrees]
+        remotelabels = [labels for i in 1:ntrees]
+     else
+        workerpool = @p workers | unstack
+        remotedata   = @p map workerpool RemoteRef | map put! data
+        remotelabels = @p map workerpool RemoteRef | map put! labels
+    end
+
+    ids = @p partsoflen (1:ntrees) len(workerpool)
+    r = Any[]
+    progress = showprogress && Progress(len(ids), 1, "Training ExtraTrees ... ", 50)
+    for idset = ids
+        refs = [@spawnat workerpool[i] ExtremelyRandomizedTree(fetch(remotedata[i]), fetch(remotelabels[i]); kargs...) for i in 1:length(idset)]
+        push!(r, [fetch(ref) for ref in refs])
+        showprogress && next!(progress)
+    end
+    @p flatten r | ExtraTrees{T}
 end
 
 function ExtraTrees{T<:Integer}(data::Matrix{T}, labels; ntrees = 32, kargs...)
 	ExtraTrees(float32(data), labels; kargs...)
 end
 
-function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::Array{T1,2}, labels::Array{T2,2}; kargs...)
+function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::AbstractArray{T1,2}, labels::AbstractArray{T2,2}; kargs...)
 
 	assert(!isempty(data))
 	assert(!isempty(labels))
@@ -40,7 +60,7 @@ function swap(a, i::Int, j::Int)
     a[j] = temp
 end
 
-function halfsort{T}(indices::Array{Int}, data::Matrix{T}, featureind::Int, threshold::T)
+function halfsort{T}(indices::Array{Int}, data::AbstractArray{T}, featureind::Int, threshold::T)
     assert(length(indices)>1)
     leftind = 1
     rightind = length(indices)
@@ -56,7 +76,7 @@ function halfsort{T}(indices::Array{Int}, data::Matrix{T}, featureind::Int, thre
     view(indices, 1:leftind), view(indices, rightind:length(indices))
 end
 
-function splits!{T}(rsplits::Array{T}, mins::Array{T}, maxs::Array{T}, data::Matrix{T}, selectedfeatures::Array{Int}, indices::Array{Int})
+function splits!{T}(rsplits::AbstractArray{T}, mins::AbstractArray{T}, maxs::AbstractArray{T}, data::AbstractArray{T,2}, selectedfeatures::AbstractArray{Int}, indices::AbstractArray{Int})
     for m = selectedfeatures
         mins[m] = data[m, indices[1]]
         maxs[m] = data[m, indices[1]]
@@ -91,9 +111,9 @@ function buildSingleTree(data, labels;
     indmatrix = ones(Int, 4, initalSize)
     thresholds = ones(eltype(data), initalSize)
     indices = collect(1:len(data))
-    mins = similar(data, sizem(data))
-    maxs = similar(data, sizem(data))
-    splits = similar(data, sizem(data))
+    mins = zeros(eltype(data), sizem(data))
+    maxs = zeros(eltype(data), sizem(data))
+    splits = zeros(eltype(data), sizem(data))
 
     function buildTree(data, labels, indices)
         if len(indices) < nmin
