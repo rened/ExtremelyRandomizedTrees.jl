@@ -2,7 +2,7 @@ module ExtremelyRandomizedTrees
 
 using FunctionalDataUtils, ProgressMeter
 
-export ExtraTrees, predict
+export ExtraTrees, predict, predict!
 
 immutable ExtremelyRandomizedTree{T}
     indmatrix::Array{Int,2}
@@ -47,7 +47,9 @@ function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::AbstractArray{T1,2
 
 	assert(!isempty(data))
 	assert(!isempty(labels))
-	assert(size(data,2) == size(labels,2))
+	if size(data,2) != size(labels,2)
+        error("ExtremelyRandomizedTree: size(data) was $(size(data)), size(labels) was $(size(labels))")
+    end
 	assert(!any(isnan(data)))
 	assert(!any(isnan(data)))
 
@@ -217,7 +219,7 @@ function buildSingleTree(data, labels;
 	(indmatrix, thresholds, leafs, regression)
 end
  
-function accumvotes!{T}(votesview::Array{T,2}, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
+function accumvotes!{T}(votesview::Matrix, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
     for i in 1:length(votesfor)
         votesview[i] += leafs[votesfor[i], leafind]
     end
@@ -261,37 +263,39 @@ function predicttree(extratree, data, dataview, votes, votesview, votesfor)
     end
 end
 
-function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor, returnvotes = false)
+function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
     assert(!isempty(data))
     assert(!isempty(a.trees))
     assert(eltype(data) == eltype(a.trees[1].thresholds))
 
     dataview = view(data)
     votesview = view(votes)
+    fill!(votes, zero(eltype(votes)))
 
     for extratree = a.trees
         predicttree(extratree, data, dataview, votes, votesview, votesfor)
     end
 
-    votes ./= length(a.trees)
+    factor = 1/length(a.trees)
+    for i = 1:length(votes) votes[i] *= factor end
+
     if a.trees[1].regression
-        votes
+        return votes
     else
         if votesfor != collect(1:size(a.trees[1].leafs,1))
-            votes
+            return votes
         else
             result = zeros(1, size(data,2))
             for i = 1:size(data,2)
                 result[i] = indmax(votes[:,i])
             end
             if returnvotes
-                (result, votes)
+                return result, votes
             else
-                result
+                return result
             end
         end
     end
-    votes
 end
 
  
