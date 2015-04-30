@@ -58,6 +58,7 @@ ExtraTrees are quite robust regarding these parameter settings, so there is rare
 
 ## News
 
-#### 0.0.2
+#### 0.0.7
 
-* Considerably improved performance of both training and prediction.
+* Fixed severe bugs in classification and regression
+* Considerably improved performance of both training and prediction
