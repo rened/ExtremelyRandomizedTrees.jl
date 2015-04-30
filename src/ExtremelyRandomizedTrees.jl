@@ -184,6 +184,7 @@ function buildSingleTree(data, labels;
                 for i in 1:nclasses
                     leafs[i,nLeafs] = classhist[i]/s
                 end
+                # @show classhist s indices leafs
 			end
            
             indmatrix[2, nodeind] = nodeind
@@ -198,6 +199,7 @@ function buildSingleTree(data, labels;
             selectedFeatures = nonConstantFeatures[
                 randIndices[1:min(k,length(nonConstantFeatures))]]
             assert(length(selectedFeatures)>0)
+            # @show nonConstantFeatures selectedFeatures
             
             # 2) for each K:
             # 	randomSplit(data)
@@ -228,18 +230,18 @@ function buildSingleTree(data, labels;
                 end
             end
             
-            indmatrix[1,nodeind] = selectedFeatures[bestSplitInd]
-            thresholds[nodeind] = splits[bestSplitInd]  
-            
             # 4) split data according to split s*, d1, d2
             featureind = selectedFeatures[bestSplitInd]
             threshold = splits[featureind]
 
             leftindices, rightindices = halfsort!(indices, data, featureind, threshold)
+            # @show scores bestSplitInd splits leftindices rightindices
 
+            indmatrix[1, nodeind] = featureind
             indmatrix[2, nodeind] = buildTree(leftindices)
             indmatrix[3, nodeind] = buildTree(rightindices)
             indmatrix[4, nodeind] = 0
+            thresholds[nodeind] = threshold
         end
 		nodeind
     end
@@ -251,19 +253,15 @@ function buildSingleTree(data, labels;
 end
  
 function accumvotes!{T}(votesview::Matrix, leafind::Int, votesfor::Array{Int}, leafs::Array{T,2})
+    # @show leafind
     for i in 1:length(votesfor)
         votesview[i] += leafs[votesfor[i], leafind]
     end
 end
 
-predict{T<:Integer}(a::ExtraTrees, data::Array{T,2}; kargs...) = predict(a, float32(data); kargs...)
-function predict{T<:FloatingPoint}(a::ExtraTrees{T}, data::Array{T,2}; votesfor = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
-    if isa(votesfor, Number)
-        votesfor = [votesfor]
-    end
-    
-    votes = zeros(eltype(a.trees[1].leafs), length(votesfor), len(data))
-    predict!(votes, a, data, votesfor, returnvotes)
+predict{T}(a::ExtraTrees{T}, data; kargs...) = predict(a, convert(Array{T,2}, data); kargs...)
+function predict{T<:FloatingPoint}(a::ExtraTrees{T}, data::Array{T,2}; kargs...)
+    predict!([], a, data; kargs... )
 end
 
 function predictitem{T}(dataview::Matrix{T}, indmatrix::Matrix{Int}, thresholds::Vector{T})
@@ -290,19 +288,35 @@ function predicttree(extratree, data, dataview, votes, votesview, votesfor)
         view!(data, dataind, dataview)
         view!(votes, dataind, votesview)
         nodeind = predictitem(dataview, indmatrix, thresholds)
-        accumvotes!(votesview, extratree.indmatrix[4,nodeind], votesfor, extratree.leafs)
+        # @show nodeind
+        accumvotes!(votesview, indmatrix[4,nodeind], votesfor, extratree.leafs)
     end
 end
 
-function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor = collect(1:size(a.trees[1].leafs,1)), returnvotes = false)
+function predict!{T<:Number}(votes::Array, a::ExtraTrees{T}, data::Array{T,2}; votesfor = [], returnvotes = false)
     assert(!isempty(data))
     assert(!isempty(a.trees))
     assert(eltype(data) == eltype(a.trees[1].thresholds))
+               
+    onlyvotes = true
+    if isempty(votesfor)
+        onlyvotes = false
+        votesfor = collect(1:size(a.trees[1].leafs,1))
+    end
+    if isa(votesfor, Number)
+        votesfor = [votesfor]
+    end
+
+    if isempty(votes)
+        votes = zeros(eltype(a.trees[1].leafs), length(votesfor), len(data))
+    else
+        assert(size(votes)==(length(votesfor),len(data)))
+    end
 
     dataview = view(data)
     votesview = view(votes)
     fill!(votes, zero(eltype(votes)))
-
+ 
     for extratree = a.trees
         predicttree(extratree, data, dataview, votes, votesview, votesfor)
     end
@@ -313,13 +327,10 @@ function predict!{T<:Number}(votes, a::ExtraTrees{T}, data::Array{T,2}, votesfor
     if a.trees[1].regression
         return votes
     else
-        if votesfor != collect(1:size(a.trees[1].leafs,1))
+        if onlyvotes
             return votes
         else
-            result = zeros(1, size(data,2))
-            for i = 1:size(data,2)
-                result[i] = indmax(votes[:,i])
-            end
+            result = @p map votes indmax | row
             if returnvotes
                 return result, votes
             else

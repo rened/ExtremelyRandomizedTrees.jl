@@ -15,10 +15,10 @@ using ExtremelyRandomizedTrees, MNIST
 trainX, trainY = traindata()
 testX, testY = testdata()
 
-a = ExtraTrees(trainX,trainY'+1)  # labels need to be >=1
-r, votes = predict(a, testX)
+model = ExtraTrees(trainX,trainY'+1)  # labels need to be >=1
+result = predict(model, testX)
 
-accuracy = 100*sum(r.==testY'+1)/length(testY)   # => 94.68 %
+accuracy = 100*sum(result.==testY'+1)/length(testY)   # => 97.05 %
 ```
 
 ## Regression
@@ -30,8 +30,8 @@ trainingData = linspace(0,2*pi,100)'
 testData = linspace(0,2*pi,1000)'
 trainingLabels = 10 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15);
 
-a = ExtraTrees(trainingData, trainingLabels; regression = true)
-result = predict(a,testData)
+model = ExtraTrees(trainingData, trainingLabels; regression = true)
+result = predict(model, testData)
 
 plot(trainingData, trainingLabels,"b.", hold = true);
 plot(testData', result',"g-", hold = true);
@@ -55,6 +55,18 @@ The optional arguments with their defaults are:
 * `k = round(sqrt(size(data,1)))`: Number of features investigated for splits at every node (see the paper for details)
 
 ExtraTrees are quite robust regarding these parameter settings, so there is rarely any need to meta-optimize them.
+
+Prediction is performed with `predict`:
+
+```jl
+result = predict(a,testData)
+```
+
+or 
+
+```jl
+result, votes = predict(a, testData, returnvotes = true)
+```
 
 ## News
 
