@@ -25,7 +25,10 @@ if doDummyClassification
     testdata = linspace(-5,5,100)'
 
     result, votes = predict(a, testdata, returnvotes = true)
-    doPlot && plot(testdata', [votes' result'])
+    if doPlot
+        figure()
+        plot(testdata', [votes' result'])
+    end
 end
 
 if doDummyRegression
@@ -36,7 +39,10 @@ if doDummyRegression
     a = ExtraTrees(trainingData, trainingLabels; regression = true)
     result = predict(a,testData)
 
-    doPlot && plot(testData', result', "b-")
+    if doPlot
+        figure()
+        plot(testData', result', "b-")
+    end
 end
 
 if doClassification
@@ -50,7 +56,10 @@ if doClassification
 
     result = predict(a, [vec(X) vec(Y)]');
     
-    doPlot && imshow(reshape(result, size(X)))
+    if doPlot
+        figure()
+        imshow(reshape(result, size(X)))
+    end
 end
 
 ####################################
@@ -67,6 +76,7 @@ if doRegression1to1
     result = predict(a,testData)
 
 	if doPlot
+        figure()
 		plot(trainingData, trainingLabels,"b.", hold = true)
 		plot(testData', result',"g-", hold = true)
 		title("univariate regression - 1 feature, 1 target")
@@ -89,6 +99,7 @@ if testIndivProbPrediction
         #assert(all(votes[i,:]/sum(votes[i,:]) == indivvotes[i]))
     end    
 	if doPlot
+        figure()
 		for i = 1:3
 			subplot(1,3,i); imshow(reshape(indivvotes[i], size(X)))
 		end
@@ -110,6 +121,7 @@ if doRegression1to2
     result = predict(a,testData)
 
 	if doPlot
+        figure()
 		plot(trainingData, trainingLabels[1,:],"b.", hold = true)
 		plot(trainingData, trainingLabels[2,:],"b.", hold = true)
 		plot(testData', result[1,:]',"g-", hold = true)
