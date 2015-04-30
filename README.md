@@ -70,7 +70,7 @@ result, votes = predict(a, testData, returnvotes = true)
 
 ## News
 
-#### 0.0.7
+#### 0.0.8
 
 * Fixed severe bugs in classification and regression
 * Considerably improved performance of both training and prediction
