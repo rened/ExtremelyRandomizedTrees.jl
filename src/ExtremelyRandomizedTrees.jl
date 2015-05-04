@@ -99,7 +99,7 @@ function splits!{T}(rsplits::AbstractArray{T}, mins::AbstractArray{T}, maxs::Abs
         maxs[m] = max(maxs[m], data[m, n])
     end
     for m = selectedfeatures
-        rsplits[m] = mins[m] + rand(eltype(rsplits))*(maxs[m]-mins[m])
+        rsplits[m] = mins[m] + eps(T) + rand(eltype(rsplits))*(maxs[m]-mins[m]-2*eps(T))
     end
 end
 
@@ -147,7 +147,7 @@ function buildSingleTree(data, labels;
             for featureInd = 1:sizem(data)
                 firstDatum = data[featureInd,indices[1]]
                 for i = 2:len(indices)
-                    if data[featureInd,indices[i]] != firstDatum
+                    if abs(data[featureInd,indices[i]] - firstDatum) > 10*eps(typeof(firstDatum))
                         nonConstantFeatures[featureInd] = true
                         break
                     end
@@ -360,8 +360,12 @@ function computeScore{T}(regression::Bool, featureData, labels::Matrix{T}, split
 		n = length(ind)
 		nleft = sum(ind)
 		nright = n-nleft
-		assert(nleft>0)
-		assert(nright>0)
+        if nleft < 1 || nright < 1
+            @show nleft nright split ind featureData
+            error("this should not happen")  # FIXME
+        end
+
+
 		if size(labels,1) == 1
  			v = var(labels)
 			vleft = nleft > 1 ? var(labels[find(ind)]) : 0.
