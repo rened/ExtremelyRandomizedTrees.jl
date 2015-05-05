@@ -360,11 +360,6 @@ function computeScore{T}(regression::Bool, featureData, labels::Matrix{T}, split
 		n = length(ind)
 		nleft = sum(ind)
 		nright = n-nleft
-        if nleft < 1 || nright < 1
-            @show nleft nright split ind featureData
-            error("this should not happen")  # FIXME
-        end
-
 
 		if size(labels,1) == 1
  			v = var(labels)
