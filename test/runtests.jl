@@ -32,7 +32,7 @@ if doDummyClassification
 end
 
 if doDummyRegression
-    trainingData = [-10:10]'
+    trainingData = collect(-10:10)'
     trainingLabels = trainingData+100
     testData = trainingData
 
@@ -114,8 +114,8 @@ end
 if doRegression1to2
     trainingData = linspace(0,2*pi,100)'
     testData = linspace(0,2*pi,1000)'
-    trainingLabels = [3 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15);
-        10 + trainingData.^2 + (0.3*rand(size(trainingData))-0.15)]
+    trainingLabels = vcat(3 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15),
+        10 + trainingData.^2 + (0.3*rand(size(trainingData))-0.15))
 
     a = ExtraTrees(trainingData, trainingLabels; regression = true)
     result = predict(a,testData)
@@ -138,10 +138,10 @@ end
 if doRegression2to2
     trainingData = linspace(0,2*pi,100)'
     testData = linspace(0,2*pi,1000)'
-    trainingTargets = vcat([10 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15)],
-    [10 + cos(trainingData) + (0.3*rand(size(trainingData))-0.15)]);
-    testTargets = vcat([10 + sin(testData)],
-    [10 + cos(testData)]);
+    trainingTargets = vcat(10 + sin(trainingData) + (0.3*rand(size(trainingData))-0.15),
+    10 + cos(trainingData) + (0.3*rand(size(trainingData))-0.15));
+    testTargets = vcat(10 + sin(testData),
+    10 + cos(testData));
 
     a = ExtraTrees(trainingData, trainingTargets; regression = true)
     result = predict(a,testData)

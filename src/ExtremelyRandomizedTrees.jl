@@ -53,7 +53,7 @@ function ExtraTrees{T<:FloatingPoint}(data::Matrix{T}, labels; ntrees = 32, show
 end
 
 function ExtraTrees{T<:Integer}(data::Matrix{T}, labels; kargs...)
-	ExtraTrees(float32(data), labels; kargs...)
+	ExtraTrees(asfloat32(data), labels; kargs...)
 end
 
 function ExtremelyRandomizedTree{T1<:Number,T2<:Number}(data::AbstractArray{T1,2}, labels::AbstractArray{T2,2}; kargs...)
@@ -99,26 +99,29 @@ function splits!{T}(rsplits::AbstractArray{T}, mins::AbstractArray{T}, maxs::Abs
         maxs[m] = max(maxs[m], data[m, n])
     end
     for m = selectedfeatures
-        rsplits[m] = mins[m] + eps(T) + rand(eltype(rsplits))*(maxs[m]-mins[m]-2*eps(T))
+        rsplits[m] = mins[m] + 100*eps(T) + rand(eltype(rsplits))*(maxs[m]-mins[m]-200*eps(T))
     end
 end
 
 function buildSingleTree(data, labels;
-        classificationNMin = 2,
-        regressionNMin = 5,
-        regression = false,
-        nmin = regression ? regressionNMin : classificationNMin,
-        nclasses = int(maximum(labels)),
-        k = round(sqrt(size(data,1))), 
+        classificationNMin::Int = 2,
+        regressionNMin::Int = 5,
+        regression::Bool = false,
+        nmin::Int = regression ? regressionNMin : classificationNMin,
+        nclasses::Int = asint(maximum(labels)),
+        k::Int = round(Int,sqrt(size(data,1))),
 	)
 
     if !regression && minimum(labels)<1
         error("labels need to be >= 1")
     end
+    if !regression
+        labels = asint(labels)
+    end
         
     nLeafs = 0
     nNodes = 0
-    initalSize = iceil(length(labels)/100)
+    initalSize = ceil(Int,length(labels)/100)
     leafsize = regression ? size(labels,1) : nclasses
     leafs = zeros(Float32, leafsize, initalSize)
     indmatrix = ones(Int, 4, initalSize)
@@ -147,7 +150,7 @@ function buildSingleTree(data, labels;
             for featureInd = 1:sizem(data)
                 firstDatum = data[featureInd,indices[1]]
                 for i = 2:len(indices)
-                    if abs(data[featureInd,indices[i]] - firstDatum) > 10*eps(typeof(firstDatum))
+                    if abs(data[featureInd,indices[i]] - firstDatum) > 200*eps(typeof(firstDatum))
                         nonConstantFeatures[featureInd] = true
                         break
                     end
