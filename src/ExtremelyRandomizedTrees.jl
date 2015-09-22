@@ -26,11 +26,11 @@ end
 c(a) = fill!(a, 0f0)
 clear!(a::Buffers) = (c(a.px); c(a.py); c(a.pxy); c(a.hc); c(a.hs); c(a.Is))
 
-type ExtraTrees{T<:FloatingPoint}
+type ExtraTrees{T<:AbstractFloat}
 	trees::Array{ExtremelyRandomizedTree{T}}
 end
 
-function ExtraTrees{T<:FloatingPoint}(data::Matrix{T}, labels; ntrees = 32, showprogress = true, pids = localworkers(), kargs...)
+function ExtraTrees{T<:AbstractFloat}(data::Matrix{T}, labels; ntrees = 32, showprogress = true, pids = localworkers(), kargs...)
     if @unix ? (intersect(pids, localworkers()) == pids) : false
         workerpool = @p localworkers | unstack
         data = share(data)
@@ -265,7 +265,7 @@ function accumvotes!{T}(votesview::Matrix, leafind::Int, votesfor::Array{Int}, l
 end
 
 predict{T}(a::ExtraTrees{T}, data; kargs...) = predict(a, convert(Array{T,2}, data); kargs...)
-function predict{T<:FloatingPoint}(a::ExtraTrees{T}, data::Array{T,2}; kargs...)
+function predict{T<:AbstractFloat}(a::ExtraTrees{T}, data::Array{T,2}; kargs...)
     predict!([], a, data; kargs... )
 end
 
