@@ -1,5 +1,6 @@
 # ExtremelyRandomizedTrees
 
+[![Build Status](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl.png)](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl)
 [![Build Status](http://pkg.julialang.org/badges/ExtremelyRandomizedTrees_0.4.svg)](http://pkg.julialang.org/?pkg=ExtremelyRandomizedTrees&ver=0.4)
 [![Build Status](http://pkg.julialang.org/badges/ExtremelyRandomizedTrees_0.5.svg)](http://pkg.julialang.org/?pkg=ExtremelyRandomizedTrees&ver=0.5)
 
