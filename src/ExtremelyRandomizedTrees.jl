@@ -1,4 +1,4 @@
-VERSION >= v"0.4.0-dev+6521" && __precompile__()
+__precompile__()
 
 module ExtremelyRandomizedTrees
 
@@ -88,7 +88,7 @@ function halfsort!{T}(indices::Array{Int}, data::AbstractArray{T}, featureind::I
             rightind -= 1
         end
     end
-    view(indices, 1:leftind-1), view(indices, rightind+1:length(indices))
+    FD.view(indices, 1:leftind-1), FD.view(indices, rightind+1:length(indices))
 end
 
 function splits!{T}(rsplits::AbstractArray{T}, mins::AbstractArray{T}, maxs::AbstractArray{T}, data::AbstractArray{T,2}, selectedfeatures::AbstractArray{Int}, indices::AbstractArray{Int})
@@ -318,8 +318,8 @@ function predict!{T<:Number}(votes::Array, a::ExtraTrees{T}, data::Array{T,2}; v
         assert(size(votes)==(length(votesfor),len(data)))
     end
 
-    dataview = view(data)
-    votesview = view(votes)
+    dataview = FD.view(data)
+    votesview = FD.view(votes)
     fill!(votes, zero(eltype(votes)))
  
     for extratree = a.trees

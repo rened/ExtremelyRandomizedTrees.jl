@@ -1,4 +1,4 @@
-println("Starting runtests.jl ...")
+println("\n\n\nStarting runtests.jl ...")
 
 using ExtremelyRandomizedTrees
 using FactCheck

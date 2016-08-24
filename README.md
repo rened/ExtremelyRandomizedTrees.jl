@@ -1,6 +1,7 @@
 # ExtremelyRandomizedTrees
 
-[![Build Status](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl.svg?branch=master)](https://travis-ci.org/rened/ExtremelyRandomizedTrees.jl)
+[![Build Status](http://pkg.julialang.org/badges/ExtremelyRandomizedTrees_0.4.svg)](http://pkg.julialang.org/?pkg=ExtremelyRandomizedTrees&ver=0.4)
+[![Build Status](http://pkg.julialang.org/badges/ExtremelyRandomizedTrees_0.5.svg)](http://pkg.julialang.org/?pkg=ExtremelyRandomizedTrees&ver=0.5)
 
 This package provides an implementation of Extremely Randomized Trees by Geurts et al 2006. Similar to Random Forests, ExtraTrees construct trees by splitting the input space semi-randomly and accumulating the target values associated with the input data found in the 'leafs' of this splitting procedure.
 
